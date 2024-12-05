@@ -2,10 +2,10 @@ import React, { useState, useCallback } from 'react';
 import { removeBackground } from '@imgly/background-removal';
 import heic2any from 'heic2any';
 
+
 function App() {
   const [originalImage, setOriginalImage] = useState<string | null>(null);
   const [processedImage, setProcessedImage] = useState<string | null>(null);
-  const [noBackgroundImage, setNoBackgroundImage] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -42,6 +42,8 @@ function App() {
       // Create URL for original image
       const reader = new FileReader();
       reader.onload = async (e) => {
+        const imageUrl = e.target?.result as string;
+        setOriginalImage(imageUrl);
         const img = new Image();
         img.onload = async () => {
           // Resize image if too large
@@ -56,81 +58,62 @@ function App() {
             height *= ratio;
           }
 
-          // Draw original image to canvas for resizing
-          const canvas = document.createElement('canvas');
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          ctx?.drawImage(img, 0, 0, width, height);
-
-          // Get resized image as base64
-          const resizedImage = canvas.toDataURL('image/jpeg');
-          setOriginalImage(resizedImage);
+          // Create container for the processed image
+          const container = document.createElement('div');
+          container.style.width = `${width}px`;
+          container.style.height = `${height}px`;
+          container.style.position = 'relative';
+          container.style.overflow = 'hidden';
+          document.body.appendChild(container);
 
           try {
-            setIsProcessing(true);
             // Remove background
-            const noBackgroundImageBlob = await removeBackground(resizedImage);
-            
-            // Convert blob to URL for display
+            const noBackgroundImageBlob = await removeBackground(e.target?.result as string);
             const noBackgroundUrl = URL.createObjectURL(noBackgroundImageBlob);
-            setNoBackgroundImage(noBackgroundUrl);
 
-            // Create blurred background
-            const blurCanvas = document.createElement('canvas');
-            blurCanvas.width = width;
-            blurCanvas.height = height;
-            const blurCtx = blurCanvas.getContext('2d');
-            
-            if (blurCtx) {
-              // First draw and blur the original image
-              blurCtx.filter = 'blur(15px) brightness(0.8)';
-              const blurImg = new Image();
-              blurImg.onload = () => {
-                // Scale the blur image to match foreground size more closely
-                const scale = 1.05;
-                const scaledWidth = width * scale;
-                const scaledHeight = height * scale;
-                const offsetX = (width - scaledWidth) / 2;
-                const offsetY = (height - scaledHeight) / 2;
-                
-                blurCtx.drawImage(blurImg, offsetX, offsetY, scaledWidth, scaledHeight);
-                
-                // Reset the filter before drawing the foreground
-                blurCtx.filter = 'none';
-                
-                // Overlay the no-background image
-                const noBackImg = new Image();
-                noBackImg.onload = () => {
-                  // Calculate dimensions to maintain aspect ratio and fill the canvas
-                  const imgAspect = noBackImg.width / noBackImg.height;
-                  const canvasAspect = width / height;
-                  let drawWidth = width;
-                  let drawHeight = height;
-                  let offsetX = 0;
-                  let offsetY = 0;
+            // Create foreground image
+            const foregroundImg = new Image();
+            foregroundImg.onload = () => {
+              const imgAspect = foregroundImg.width / foregroundImg.height;
+              const containerAspect = width / height;
+              
+              // Calculate dimensions to maintain aspect ratio
+              let drawWidth = width;
+              let drawHeight = height;
+              
+              if (imgAspect > containerAspect) {
+                drawHeight = width / imgAspect;
+              } else {
+                drawWidth = height * imgAspect;
+              }
 
-                  if (imgAspect > canvasAspect) {
-                    // Image is wider than canvas
-                    drawHeight = width / imgAspect;
-                    offsetY = (height - drawHeight) / 2;
-                  } else {
-                    // Image is taller than canvas
-                    drawWidth = height * imgAspect;
-                    offsetX = (width - drawWidth) / 2;
-                  }
+              // Create a canvas for the final image
+              const canvas = document.createElement('canvas');
+              canvas.width = width;
+              canvas.height = height;
+              const ctx = canvas.getContext('2d');
+              
+              if (ctx) {
+                // Clear the canvas with transparency
+                ctx.clearRect(0, 0, width, height);
+                
+                // Draw the image centered
+                const x = (width - drawWidth) / 2;
+                const y = (height - drawHeight) / 2;
+                ctx.drawImage(foregroundImg, x, y, drawWidth, drawHeight);
+                
+                // Convert to PNG to preserve transparency
+                setProcessedImage(canvas.toDataURL('image/png'));
+              }
+              setIsProcessing(false);
+            };
+            foregroundImg.src = noBackgroundUrl;
+            foregroundImg.crossOrigin = 'anonymous';
 
-                  blurCtx.drawImage(noBackImg, offsetX, offsetY, drawWidth, drawHeight);
-                  setProcessedImage(blurCanvas.toDataURL('image/jpeg'));
-                  setIsProcessing(false);
-                };
-                noBackImg.src = noBackgroundUrl;
-              };
-              blurImg.src = resizedImage;
-            }
           } catch (error) {
-            console.error('Error processing image:', error);
+            console.error('Error removing background:', error);
             setIsProcessing(false);
+            document.body.removeChild(container);
           }
         };
         img.src = e.target?.result as string;
@@ -186,7 +169,7 @@ function App() {
     if (processedImage) {
       const link = document.createElement('a');
       link.href = processedImage;
-      link.download = 'processed-image.jpg';
+      link.download = 'processed-image.png';
       link.click();
     }
   }, [processedImage]);
@@ -201,116 +184,82 @@ function App() {
           <p className="text-gray-400 text-lg">Transform your images with one click</p>
         </div>
         
-        <div className="bg-[#1e293b] rounded-3xl shadow-2xl p-8 backdrop-blur-xl border border-gray-700">
-          <div className="mb-12">
-            <div className="flex flex-col items-center justify-center w-full">
-              <div 
-                onDragEnter={handleDragEnter}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                className={`flex flex-col items-center justify-center w-full h-64 border-2 border-dashed rounded-2xl cursor-pointer transition-all duration-300 group ${
-                  isDragging 
-                    ? 'border-blue-500 bg-[#0f172a]/70' 
-                    : 'border-gray-600 bg-[#0f172a]/50 hover:bg-[#0f172a]/70 hover:border-blue-500'
-                }`}
-              >
-                <label 
-                  htmlFor="dropzone-file" 
-                  className="flex flex-col items-center justify-center w-full h-full cursor-pointer"
-                >
-                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                    <svg 
-                      className={`w-12 h-12 mb-4 transition-colors ${
-                        isDragging ? 'text-blue-500' : 'text-gray-400 group-hover:text-blue-500'
-                      }`} 
-                      fill="none" 
-                      stroke="currentColor" 
-                      viewBox="0 0 24 24" 
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                    </svg>
-                    <p className="mb-2 text-lg text-gray-400 group-hover:text-gray-300">
-                      <span className="font-semibold">{isDragging ? 'Drop it here!' : 'Drop your image here'}</span>
-                    </p>
-                    <p className="text-sm text-gray-500">or click to browse</p>
-                  </div>
-                  <input
-                    id="dropzone-file"
-                    type="file"
-                    className="hidden"
-                    accept="image/*,.heic,.heif"
-                    onChange={handleImageUpload}
+        <div className="flex flex-col items-center justify-center">
+          <div
+            className={`w-full max-w-2xl h-80 border-2 border-dashed rounded-lg mb-8 flex items-center justify-center relative overflow-hidden ${
+              isDragging ? 'border-blue-500 bg-blue-50/10' : 'border-gray-600 hover:border-gray-500'
+            }`}
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+          >
+            {isProcessing ? (
+              <div className="text-center">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mb-2"></div>
+                <p>Processing...</p>
+              </div>
+            ) : processedImage ? (
+              <div className="relative w-full h-full">
+                {/* Checkerboard pattern for transparency */}
+                <div 
+                  className="absolute inset-0"
+                  style={{
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath fill='%23f0f0f0' d='M0 0h8v8H0zM8 8h8v8H8z'/%3E%3Cpath fill='%23e0e0e0' d='M8 0h8v8H8zM0 8h8v8H0z'/%3E%3C/svg%3E")`,
+                    backgroundSize: '16px 16px'
+                  }}
+                />
+                {/* Blurred background */}
+                {originalImage && (
+                  <div 
+                    className="absolute inset-0"
+                    style={{
+                      backgroundImage: `url(${originalImage})`,
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                      filter: 'blur(20px) brightness(0.8)',
+                      transform: 'scale(1.1)'
+                    }}
                   />
+                )}
+                {/* Processed image */}
+                <img
+                  src={processedImage}
+                  alt="Processed"
+                  className="absolute inset-0 w-full h-full object-contain"
+                />
+              </div>
+            ) : (
+              <div className="text-center p-6">
+                <input
+                  type="file"
+                  accept="image/*,.heic,.heif"
+                  onChange={handleImageUpload}
+                  className="hidden"
+                  id="fileInput"
+                />
+                <label
+                  htmlFor="fileInput"
+                  className="cursor-pointer text-blue-500 hover:text-blue-400"
+                >
+                  Click to upload
                 </label>
+                <p className="mt-2 text-gray-400">or drag and drop</p>
+                <p className="text-sm text-gray-500 mt-1">
+                  Supports: JPG, PNG, WEBP, HEIC
+                </p>
               </div>
-            </div>
+            )}
           </div>
-
-          {isProcessing && (
-            <div className="flex items-center justify-center py-12">
-              <div className="relative">
-                <div className="w-16 h-16 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin"></div>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-8 h-8 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin"></div>
-                </div>
-              </div>
-              <p className="ml-6 text-gray-400 text-lg font-medium">Processing your image...</p>
-            </div>
+          
+          {processedImage && (
+            <button
+              onClick={handleDownload}
+              className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-6 rounded-lg transition-colors"
+            >
+              Download
+            </button>
           )}
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
-            {originalImage && (
-              <div className="flex flex-col group">
-                <h2 className="text-xl font-semibold mb-4 text-gray-300">Original Image</h2>
-                <div className="relative aspect-square rounded-2xl overflow-hidden bg-[#0f172a] ring-1 ring-gray-700 group-hover:ring-blue-500/50 transition-all duration-300">
-                  <img
-                    src={originalImage}
-                    alt="Original"
-                    className="w-full h-full object-contain"
-                  />
-                </div>
-              </div>
-            )}
-
-            {noBackgroundImage && (
-              <div className="flex flex-col group">
-                <h2 className="text-xl font-semibold mb-4 text-gray-300">No Background</h2>
-                <div className="relative aspect-square rounded-2xl overflow-hidden bg-[#0f172a] ring-1 ring-gray-700 group-hover:ring-blue-500/50 transition-all duration-300">
-                  <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCI+CiAgPHJlY3Qgd2lkdGg9IjEwIiBoZWlnaHQ9IjEwIiBmaWxsPSIjMWUyOTNiIj48L3JlY3Q+CiAgPHJlY3QgeD0iMTAiIHk9IjEwIiB3aWR0aD0iMTAiIGhlaWdodD0iMTAiIGZpbGw9IiMxZTI5M2IiPjwvcmVjdD4KICA8cmVjdCB4PSIxMCIgd2lkdGg9IjEwIiBoZWlnaHQ9IjEwIiBmaWxsPSIjMGYxNzJhIj48L3JlY3Q+CiAgPHJlY3QgeT0iMTAiIHdpZHRoPSIxMCIgaGVpZ2h0PSIxMCIgZmlsbD0iIzBmMTcyYSI+PC9yZWN0Pgo8L3N2Zz4=')] opacity-30"></div>
-                  <img
-                    src={noBackgroundImage}
-                    alt="No Background"
-                    className="w-full h-full object-contain relative z-10"
-                  />
-                </div>
-              </div>
-            )}
-
-            {processedImage && (
-              <div className="flex flex-col group">
-                <h2 className="text-xl font-semibold mb-4 text-gray-300">Final Result</h2>
-                <div className="relative aspect-square rounded-2xl overflow-hidden bg-[#0f172a] ring-1 ring-gray-700 group-hover:ring-blue-500/50 transition-all duration-300">
-                  <img
-                    src={processedImage}
-                    alt="Processed"
-                    className="w-full h-full object-contain"
-                  />
-                </div>
-                <button
-                  onClick={handleDownload}
-                  className="mt-6 w-full bg-gradient-to-r from-blue-500 to-purple-500 text-white px-6 py-4 rounded-xl hover:from-blue-600 hover:to-purple-600 transition-all duration-300 flex items-center justify-center font-medium group relative overflow-hidden"
-                >
-                  <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.1)_50%,transparent_75%)] bg-[length:250%_250%] animate-shimmer"></div>
-                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                  </svg>
-                  Download Result
-                </button>
-              </div>
-            )}
-          </div>
         </div>
       </div>
     </div>
