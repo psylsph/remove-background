@@ -2,12 +2,14 @@ import React, { useState, useCallback } from 'react';
 import { removeBackground } from '@imgly/background-removal';
 import heic2any from 'heic2any';
 
-
 function App() {
   const [originalImage, setOriginalImage] = useState<string | null>(null);
   const [processedImage, setProcessedImage] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [imgWidth, setImgWidth] = useState<number | null>(null);
+  const [imgHeight, setImgHeight] = useState<number | null>(null);
+  const [blurAmount, setBlurAmount] = useState(20);
 
   const convertHeicToJpeg = async (file: File): Promise<File> => {
     try {
@@ -57,6 +59,9 @@ function App() {
             width *= ratio;
             height *= ratio;
           }
+
+          setImgWidth(width);
+          setImgHeight(height);
 
           // Create container for the processed image
           const container = document.createElement('div');
@@ -166,22 +171,50 @@ function App() {
   };
 
   const handleDownload = useCallback(() => {
-    if (processedImage) {
-      const link = document.createElement('a');
-      link.href = processedImage;
-      link.download = 'processed-image.png';
-      link.click();
+    if (processedImage && originalImage && imgWidth && imgHeight) {
+      // Create a canvas to combine the images
+      const canvas = document.createElement('canvas');
+      canvas.width = imgWidth;
+      canvas.height = imgHeight;
+      const ctx = canvas.getContext('2d');
+
+      if (ctx) {
+        // Create temporary images for both layers
+        const bgImage = new Image();
+        const fgImage = new Image();
+        
+        // Load background (blurred) image first
+        bgImage.onload = () => {
+          ctx.filter = `blur(${blurAmount}px) brightness(0.8)`;
+          ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
+          ctx.filter = 'none';
+          
+          // Then load and draw the foreground image
+          fgImage.onload = () => {
+            ctx.drawImage(fgImage, 0, 0, canvas.width, canvas.height);
+            
+            // Create download link
+            const link = document.createElement('a');
+            link.href = canvas.toDataURL('image/jpeg', 0.95);
+            link.download = 'processed-image.jpg';
+            link.click();
+          };
+          fgImage.src = processedImage;
+        };
+        bgImage.src = originalImage;
+      }
     }
-  }, [processedImage]);
+  }, [processedImage, originalImage, imgWidth, imgHeight, blurAmount]);
 
   return (
     <div className="min-h-screen bg-[#0f172a] text-white py-12 px-4">
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-12">
           <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-blue-400 to-purple-500 text-transparent bg-clip-text">
-            Background Remover
+            Image Background Blur Tool
+            
           </h1>
-          <p className="text-gray-400 text-lg">Transform your images with one click</p>
+          <p className="text-gray-400 text-lg">Transform your Images with Two Clicks</p>
         </div>
         
         <div className="flex flex-col items-center justify-center">
@@ -200,7 +233,12 @@ function App() {
                 <p>Processing...</p>
               </div>
             ) : processedImage ? (
-              <div className="relative w-full h-full">
+              <div className="relative w-full" style={{
+                paddingTop: imgHeight && imgWidth ? `${(imgHeight / imgWidth) * 100}%` : '0',
+                position: 'relative',
+                width: '100%',
+                overflow: 'hidden'
+              }}>
                 {/* Checkerboard pattern for transparency */}
                 <div 
                   className="absolute inset-0"
@@ -212,13 +250,14 @@ function App() {
                 {/* Blurred background */}
                 {originalImage && (
                   <div 
-                    className="absolute inset-0"
+                    className="absolute inset-0 bg-white"
                     style={{
                       backgroundImage: `url(${originalImage})`,
                       backgroundSize: 'cover',
                       backgroundPosition: 'center',
-                      filter: 'blur(20px) brightness(0.8)',
-                      transform: 'scale(1.1)'
+                      filter: `blur(${blurAmount}px) brightness(0.8)`,
+                      transform: 'scale(1)',
+                      backgroundColor: 'white'
                     }}
                   />
                 )}
@@ -226,7 +265,7 @@ function App() {
                 <img
                   src={processedImage}
                   alt="Processed"
-                  className="absolute inset-0 w-full h-full object-contain"
+                  className="absolute inset-0 w-full h-full object-cover"
                 />
               </div>
             ) : (
@@ -253,12 +292,29 @@ function App() {
           </div>
           
           {processedImage && (
-            <button
-              onClick={handleDownload}
-              className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-6 rounded-lg transition-colors"
-            >
-              Download
-            </button>
+            <div className="flex flex-col items-center gap-4">
+              <div className="w-full max-w-md flex items-center gap-4">
+                <label htmlFor="blur-slider" className="text-sm text-gray-400">
+                  Blur Amount:
+                </label>
+                <input
+                  id="blur-slider"
+                  type="range"
+                  min="0"
+                  max="40"
+                  value={blurAmount}
+                  onChange={(e) => setBlurAmount(Number(e.target.value))}
+                  className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                />
+                <span className="text-sm text-gray-400 w-8">{blurAmount}</span>
+              </div>
+              <button
+                onClick={handleDownload}
+                className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-6 rounded-lg transition-colors"
+              >
+                Download
+              </button>
+            </div>
           )}
         </div>
       </div>
