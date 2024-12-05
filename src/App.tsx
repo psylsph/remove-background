@@ -6,10 +6,10 @@ function App() {
   const [processedImage, setProcessedImage] = useState<string | null>(null);
   const [noBackgroundImage, setNoBackgroundImage] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+  const processImage = async (file: File) => {
     if (!file) return;
 
     // Create URL for original image
@@ -61,7 +61,7 @@ function App() {
             const blurImg = new Image();
             blurImg.onload = () => {
               // Scale the blur image to match foreground size more closely
-              const scale = 1.05;  
+              const scale = 1.05;
               const scaledWidth = width * scale;
               const scaledHeight = height * scale;
               const offsetX = (width - scaledWidth) / 2;
@@ -111,6 +111,42 @@ function App() {
     reader.readAsDataURL(file);
   };
 
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      processImage(file);
+    }
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = Array.from(e.dataTransfer.files);
+    const imageFile = files.find(file => file.type.startsWith('image/'));
+    if (imageFile) {
+      handleImageUpload({ target: { files: [imageFile] } } as any);
+    }
+  };
+
   const handleDownload = useCallback(() => {
     if (processedImage) {
       const link = document.createElement('a');
@@ -133,27 +169,47 @@ function App() {
         <div className="bg-[#1e293b] rounded-3xl shadow-2xl p-8 backdrop-blur-xl border border-gray-700">
           <div className="mb-12">
             <div className="flex flex-col items-center justify-center w-full">
-              <label 
-                htmlFor="dropzone-file" 
-                className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed border-gray-600 rounded-2xl bg-[#0f172a]/50 hover:bg-[#0f172a]/70 hover:border-blue-500 cursor-pointer transition-all duration-300 group"
+              <div 
+                onDragEnter={handleDragEnter}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={`flex flex-col items-center justify-center w-full h-64 border-2 border-dashed rounded-2xl cursor-pointer transition-all duration-300 group ${
+                  isDragging 
+                    ? 'border-blue-500 bg-[#0f172a]/70' 
+                    : 'border-gray-600 bg-[#0f172a]/50 hover:bg-[#0f172a]/70 hover:border-blue-500'
+                }`}
               >
-                <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                  <svg className="w-12 h-12 mb-4 text-gray-400 group-hover:text-blue-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                  </svg>
-                  <p className="mb-2 text-lg text-gray-400 group-hover:text-gray-300">
-                    <span className="font-semibold">Drop your image here</span>
-                  </p>
-                  <p className="text-sm text-gray-500">or click to browse</p>
-                </div>
-                <input
-                  id="dropzone-file"
-                  type="file"
-                  className="hidden"
-                  accept="image/*"
-                  onChange={handleImageUpload}
-                />
-              </label>
+                <label 
+                  htmlFor="dropzone-file" 
+                  className="flex flex-col items-center justify-center w-full h-full cursor-pointer"
+                >
+                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                    <svg 
+                      className={`w-12 h-12 mb-4 transition-colors ${
+                        isDragging ? 'text-blue-500' : 'text-gray-400 group-hover:text-blue-500'
+                      }`} 
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24" 
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    <p className="mb-2 text-lg text-gray-400 group-hover:text-gray-300">
+                      <span className="font-semibold">{isDragging ? 'Drop it here!' : 'Drop your image here'}</span>
+                    </p>
+                    <p className="text-sm text-gray-500">or click to browse</p>
+                  </div>
+                  <input
+                    id="dropzone-file"
+                    type="file"
+                    className="hidden"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                  />
+                </label>
+              </div>
             </div>
           </div>
 
