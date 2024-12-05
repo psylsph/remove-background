@@ -121,66 +121,101 @@ function App() {
   }, [processedImage]);
 
   return (
-    <div className="min-h-screen bg-gray-100 py-8 px-4">
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-3xl font-bold text-center mb-8">Image Background Processor</h1>
+    <div className="min-h-screen bg-[#0f172a] text-white py-12 px-4">
+      <div className="max-w-7xl mx-auto">
+        <div className="text-center mb-12">
+          <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-blue-400 to-purple-500 text-transparent bg-clip-text">
+            Background Remover
+          </h1>
+          <p className="text-gray-400 text-lg">Transform your images with one click</p>
+        </div>
         
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <div className="mb-6">
-            <label className="block text-gray-700 text-sm font-bold mb-2">
-              Upload Image
-            </label>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleImageUpload}
-              className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-            />
+        <div className="bg-[#1e293b] rounded-3xl shadow-2xl p-8 backdrop-blur-xl border border-gray-700">
+          <div className="mb-12">
+            <div className="flex flex-col items-center justify-center w-full">
+              <label 
+                htmlFor="dropzone-file" 
+                className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed border-gray-600 rounded-2xl bg-[#0f172a]/50 hover:bg-[#0f172a]/70 hover:border-blue-500 cursor-pointer transition-all duration-300 group"
+              >
+                <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                  <svg className="w-12 h-12 mb-4 text-gray-400 group-hover:text-blue-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                  <p className="mb-2 text-lg text-gray-400 group-hover:text-gray-300">
+                    <span className="font-semibold">Drop your image here</span>
+                  </p>
+                  <p className="text-sm text-gray-500">or click to browse</p>
+                </div>
+                <input
+                  id="dropzone-file"
+                  type="file"
+                  className="hidden"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                />
+              </label>
+            </div>
           </div>
 
           {isProcessing && (
-            <div className="text-center py-4">
-              <p className="text-gray-600">Processing image...</p>
+            <div className="flex items-center justify-center py-12">
+              <div className="relative">
+                <div className="w-16 h-16 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin"></div>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-8 h-8 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin"></div>
+                </div>
+              </div>
+              <p className="ml-6 text-gray-400 text-lg font-medium">Processing your image...</p>
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
             {originalImage && (
-              <div>
-                <h2 className="text-lg font-semibold mb-2">Original Image</h2>
-                <img
-                  src={originalImage}
-                  alt="Original"
-                  className="w-full rounded-lg"
-                />
+              <div className="flex flex-col group">
+                <h2 className="text-xl font-semibold mb-4 text-gray-300">Original Image</h2>
+                <div className="relative aspect-square rounded-2xl overflow-hidden bg-[#0f172a] ring-1 ring-gray-700 group-hover:ring-blue-500/50 transition-all duration-300">
+                  <img
+                    src={originalImage}
+                    alt="Original"
+                    className="w-full h-full object-contain"
+                  />
+                </div>
               </div>
             )}
 
             {noBackgroundImage && (
-              <div>
-                <h2 className="text-lg font-semibold mb-2">No Background</h2>
-                <img
-                  src={noBackgroundImage}
-                  alt="No Background"
-                  className="w-full rounded-lg"
-                  style={{ backgroundColor: '#f0f0f0' }}
-                />
+              <div className="flex flex-col group">
+                <h2 className="text-xl font-semibold mb-4 text-gray-300">No Background</h2>
+                <div className="relative aspect-square rounded-2xl overflow-hidden bg-[#0f172a] ring-1 ring-gray-700 group-hover:ring-blue-500/50 transition-all duration-300">
+                  <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCI+CiAgPHJlY3Qgd2lkdGg9IjEwIiBoZWlnaHQ9IjEwIiBmaWxsPSIjMWUyOTNiIj48L3JlY3Q+CiAgPHJlY3QgeD0iMTAiIHk9IjEwIiB3aWR0aD0iMTAiIGhlaWdodD0iMTAiIGZpbGw9IiMxZTI5M2IiPjwvcmVjdD4KICA8cmVjdCB4PSIxMCIgd2lkdGg9IjEwIiBoZWlnaHQ9IjEwIiBmaWxsPSIjMGYxNzJhIj48L3JlY3Q+CiAgPHJlY3QgeT0iMTAiIHdpZHRoPSIxMCIgaGVpZ2h0PSIxMCIgZmlsbD0iIzBmMTcyYSI+PC9yZWN0Pgo8L3N2Zz4=')] opacity-30"></div>
+                  <img
+                    src={noBackgroundImage}
+                    alt="No Background"
+                    className="w-full h-full object-contain relative z-10"
+                  />
+                </div>
               </div>
             )}
 
             {processedImage && (
-              <div>
-                <h2 className="text-lg font-semibold mb-2">Final Result</h2>
-                <img
-                  src={processedImage}
-                  alt="Processed"
-                  className="w-full rounded-lg"
-                />
+              <div className="flex flex-col group">
+                <h2 className="text-xl font-semibold mb-4 text-gray-300">Final Result</h2>
+                <div className="relative aspect-square rounded-2xl overflow-hidden bg-[#0f172a] ring-1 ring-gray-700 group-hover:ring-blue-500/50 transition-all duration-300">
+                  <img
+                    src={processedImage}
+                    alt="Processed"
+                    className="w-full h-full object-contain"
+                  />
+                </div>
                 <button
                   onClick={handleDownload}
-                  className="mt-4 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
+                  className="mt-6 w-full bg-gradient-to-r from-blue-500 to-purple-500 text-white px-6 py-4 rounded-xl hover:from-blue-600 hover:to-purple-600 transition-all duration-300 flex items-center justify-center font-medium group relative overflow-hidden"
                 >
-                  Download Processed Image
+                  <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.1)_50%,transparent_75%)] bg-[length:250%_250%] animate-shimmer"></div>
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  Download Result
                 </button>
               </div>
             )}
