@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { removeBackground } from '@imgly/background-removal';
+import heic2any from 'heic2any';
 
 function App() {
   const [originalImage, setOriginalImage] = useState<string | null>(null);
@@ -9,106 +10,137 @@ function App() {
   const [isDragging, setIsDragging] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  const convertHeicToJpeg = async (file: File): Promise<File> => {
+    try {
+      const conversionResult = await heic2any({
+        blob: file,
+        toType: 'image/jpeg',
+        quality: 0.9
+      });
+
+      // Handle both single file and array result
+      const jpegBlob = Array.isArray(conversionResult) ? conversionResult[0] : conversionResult;
+      return new File([jpegBlob], file.name.replace(/\.(heic|heif)$/i, '.jpg'), {
+        type: 'image/jpeg'
+      });
+    } catch (error) {
+      console.error('Error converting HEIC/HEIF:', error);
+      throw new Error('Failed to convert HEIC/HEIF image');
+    }
+  };
+
   const processImage = async (file: File) => {
     if (!file) return;
 
-    // Create URL for original image
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const img = new Image();
-      img.onload = async () => {
-        // Resize image if too large
-        const maxWidth = 800;
-        const maxHeight = 800;
-        let width = img.width;
-        let height = img.height;
+    try {
+      setIsProcessing(true);
+      
+      // Convert HEIC/HEIF to JPEG if necessary
+      const processableFile = /\.(heic|heif)$/i.test(file.name) 
+        ? await convertHeicToJpeg(file)
+        : file;
 
-        if (width > maxWidth || height > maxHeight) {
-          const ratio = Math.min(maxWidth / width, maxHeight / height);
-          width *= ratio;
-          height *= ratio;
-        }
+      // Create URL for original image
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const img = new Image();
+        img.onload = async () => {
+          // Resize image if too large
+          const maxWidth = 800;
+          const maxHeight = 800;
+          let width = img.width;
+          let height = img.height;
 
-        // Draw original image to canvas for resizing
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx?.drawImage(img, 0, 0, width, height);
-
-        // Get resized image as base64
-        const resizedImage = canvas.toDataURL('image/jpeg');
-        setOriginalImage(resizedImage);
-
-        try {
-          setIsProcessing(true);
-          // Remove background
-          const noBackgroundImageBlob = await removeBackground(resizedImage);
-          
-          // Convert blob to URL for display
-          const noBackgroundUrl = URL.createObjectURL(noBackgroundImageBlob);
-          setNoBackgroundImage(noBackgroundUrl);
-
-          // Create blurred background
-          const blurCanvas = document.createElement('canvas');
-          blurCanvas.width = width;
-          blurCanvas.height = height;
-          const blurCtx = blurCanvas.getContext('2d');
-          
-          if (blurCtx) {
-            // First draw and blur the original image
-            blurCtx.filter = 'blur(15px) brightness(0.8)';
-            const blurImg = new Image();
-            blurImg.onload = () => {
-              // Scale the blur image to match foreground size more closely
-              const scale = 1.05;
-              const scaledWidth = width * scale;
-              const scaledHeight = height * scale;
-              const offsetX = (width - scaledWidth) / 2;
-              const offsetY = (height - scaledHeight) / 2;
-              
-              blurCtx.drawImage(blurImg, offsetX, offsetY, scaledWidth, scaledHeight);
-              
-              // Reset the filter before drawing the foreground
-              blurCtx.filter = 'none';
-              
-              // Overlay the no-background image
-              const noBackImg = new Image();
-              noBackImg.onload = () => {
-                // Calculate dimensions to maintain aspect ratio and fill the canvas
-                const imgAspect = noBackImg.width / noBackImg.height;
-                const canvasAspect = width / height;
-                let drawWidth = width;
-                let drawHeight = height;
-                let offsetX = 0;
-                let offsetY = 0;
-
-                if (imgAspect > canvasAspect) {
-                  // Image is wider than canvas
-                  drawHeight = width / imgAspect;
-                  offsetY = (height - drawHeight) / 2;
-                } else {
-                  // Image is taller than canvas
-                  drawWidth = height * imgAspect;
-                  offsetX = (width - drawWidth) / 2;
-                }
-
-                blurCtx.drawImage(noBackImg, offsetX, offsetY, drawWidth, drawHeight);
-                setProcessedImage(blurCanvas.toDataURL('image/jpeg'));
-                setIsProcessing(false);
-              };
-              noBackImg.src = noBackgroundUrl;
-            };
-            blurImg.src = resizedImage;
+          if (width > maxWidth || height > maxHeight) {
+            const ratio = Math.min(maxWidth / width, maxHeight / height);
+            width *= ratio;
+            height *= ratio;
           }
-        } catch (error) {
-          console.error('Error processing image:', error);
-          setIsProcessing(false);
-        }
+
+          // Draw original image to canvas for resizing
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+
+          // Get resized image as base64
+          const resizedImage = canvas.toDataURL('image/jpeg');
+          setOriginalImage(resizedImage);
+
+          try {
+            setIsProcessing(true);
+            // Remove background
+            const noBackgroundImageBlob = await removeBackground(resizedImage);
+            
+            // Convert blob to URL for display
+            const noBackgroundUrl = URL.createObjectURL(noBackgroundImageBlob);
+            setNoBackgroundImage(noBackgroundUrl);
+
+            // Create blurred background
+            const blurCanvas = document.createElement('canvas');
+            blurCanvas.width = width;
+            blurCanvas.height = height;
+            const blurCtx = blurCanvas.getContext('2d');
+            
+            if (blurCtx) {
+              // First draw and blur the original image
+              blurCtx.filter = 'blur(15px) brightness(0.8)';
+              const blurImg = new Image();
+              blurImg.onload = () => {
+                // Scale the blur image to match foreground size more closely
+                const scale = 1.05;
+                const scaledWidth = width * scale;
+                const scaledHeight = height * scale;
+                const offsetX = (width - scaledWidth) / 2;
+                const offsetY = (height - scaledHeight) / 2;
+                
+                blurCtx.drawImage(blurImg, offsetX, offsetY, scaledWidth, scaledHeight);
+                
+                // Reset the filter before drawing the foreground
+                blurCtx.filter = 'none';
+                
+                // Overlay the no-background image
+                const noBackImg = new Image();
+                noBackImg.onload = () => {
+                  // Calculate dimensions to maintain aspect ratio and fill the canvas
+                  const imgAspect = noBackImg.width / noBackImg.height;
+                  const canvasAspect = width / height;
+                  let drawWidth = width;
+                  let drawHeight = height;
+                  let offsetX = 0;
+                  let offsetY = 0;
+
+                  if (imgAspect > canvasAspect) {
+                    // Image is wider than canvas
+                    drawHeight = width / imgAspect;
+                    offsetY = (height - drawHeight) / 2;
+                  } else {
+                    // Image is taller than canvas
+                    drawWidth = height * imgAspect;
+                    offsetX = (width - drawWidth) / 2;
+                  }
+
+                  blurCtx.drawImage(noBackImg, offsetX, offsetY, drawWidth, drawHeight);
+                  setProcessedImage(blurCanvas.toDataURL('image/jpeg'));
+                  setIsProcessing(false);
+                };
+                noBackImg.src = noBackgroundUrl;
+              };
+              blurImg.src = resizedImage;
+            }
+          } catch (error) {
+            console.error('Error processing image:', error);
+            setIsProcessing(false);
+          }
+        };
+        img.src = e.target?.result as string;
       };
-      img.src = e.target?.result as string;
-    };
-    reader.readAsDataURL(file);
+      reader.readAsDataURL(processableFile);
+    } catch (error) {
+      console.error('Error processing image:', error);
+      setIsProcessing(false);
+    }
   };
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -135,15 +167,19 @@ function App() {
     e.stopPropagation();
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
 
     const files = Array.from(e.dataTransfer.files);
-    const imageFile = files.find(file => file.type.startsWith('image/'));
+    const imageFile = files.find(file => 
+      file.type.startsWith('image/') || 
+      /\.(heic|heif)$/i.test(file.name)
+    );
+    
     if (imageFile) {
-      handleImageUpload({ target: { files: [imageFile] } } as any);
+      processImage(imageFile);
     }
   };
 
@@ -205,7 +241,7 @@ function App() {
                     id="dropzone-file"
                     type="file"
                     className="hidden"
-                    accept="image/*"
+                    accept="image/*,.heic,.heif"
                     onChange={handleImageUpload}
                   />
                 </label>
