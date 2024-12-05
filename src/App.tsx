@@ -4,6 +4,7 @@ import { removeBackground } from '@imgly/background-removal';
 function App() {
   const [originalImage, setOriginalImage] = useState<string | null>(null);
   const [processedImage, setProcessedImage] = useState<string | null>(null);
+  const [noBackgroundImage, setNoBackgroundImage] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -42,7 +43,11 @@ function App() {
         try {
           setIsProcessing(true);
           // Remove background
-          const noBackgroundImage = await removeBackground(resizedImage);
+          const noBackgroundImageBlob = await removeBackground(resizedImage);
+          
+          // Convert blob to URL for display
+          const noBackgroundUrl = URL.createObjectURL(noBackgroundImageBlob);
+          setNoBackgroundImage(noBackgroundUrl);
 
           // Create blurred background
           const blurCanvas = document.createElement('canvas');
@@ -51,19 +56,48 @@ function App() {
           const blurCtx = blurCanvas.getContext('2d');
           
           if (blurCtx) {
-            blurCtx.filter = 'blur(10px)';
+            // First draw and blur the original image
+            blurCtx.filter = 'blur(15px) brightness(0.8)';
             const blurImg = new Image();
             blurImg.onload = () => {
-              blurCtx.drawImage(blurImg, 0, 0, width, height);
+              // Scale the blur image to match foreground size more closely
+              const scale = 1.05;  
+              const scaledWidth = width * scale;
+              const scaledHeight = height * scale;
+              const offsetX = (width - scaledWidth) / 2;
+              const offsetY = (height - scaledHeight) / 2;
+              
+              blurCtx.drawImage(blurImg, offsetX, offsetY, scaledWidth, scaledHeight);
+              
+              // Reset the filter before drawing the foreground
+              blurCtx.filter = 'none';
               
               // Overlay the no-background image
               const noBackImg = new Image();
               noBackImg.onload = () => {
-                blurCtx.drawImage(noBackImg, 0, 0, width, height);
+                // Calculate dimensions to maintain aspect ratio and fill the canvas
+                const imgAspect = noBackImg.width / noBackImg.height;
+                const canvasAspect = width / height;
+                let drawWidth = width;
+                let drawHeight = height;
+                let offsetX = 0;
+                let offsetY = 0;
+
+                if (imgAspect > canvasAspect) {
+                  // Image is wider than canvas
+                  drawHeight = width / imgAspect;
+                  offsetY = (height - drawHeight) / 2;
+                } else {
+                  // Image is taller than canvas
+                  drawWidth = height * imgAspect;
+                  offsetX = (width - drawWidth) / 2;
+                }
+
+                blurCtx.drawImage(noBackImg, offsetX, offsetY, drawWidth, drawHeight);
                 setProcessedImage(blurCanvas.toDataURL('image/jpeg'));
                 setIsProcessing(false);
               };
-              noBackImg.src = URL.createObjectURL(noBackgroundImage);
+              noBackImg.src = noBackgroundUrl;
             };
             blurImg.src = resizedImage;
           }
@@ -110,7 +144,7 @@ function App() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {originalImage && (
               <div>
                 <h2 className="text-lg font-semibold mb-2">Original Image</h2>
@@ -122,9 +156,21 @@ function App() {
               </div>
             )}
 
+            {noBackgroundImage && (
+              <div>
+                <h2 className="text-lg font-semibold mb-2">No Background</h2>
+                <img
+                  src={noBackgroundImage}
+                  alt="No Background"
+                  className="w-full rounded-lg"
+                  style={{ backgroundColor: '#f0f0f0' }}
+                />
+              </div>
+            )}
+
             {processedImage && (
               <div>
-                <h2 className="text-lg font-semibold mb-2">Processed Image</h2>
+                <h2 className="text-lg font-semibold mb-2">Final Result</h2>
                 <img
                   src={processedImage}
                   alt="Processed"
