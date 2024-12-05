@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { removeBackground } from '@imgly/background-removal';
 import heic2any from 'heic2any';
 
@@ -8,7 +8,6 @@ function App() {
   const [noBackgroundImage, setNoBackgroundImage] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const convertHeicToJpeg = async (file: File): Promise<File> => {
     try {
